@@ -1,0 +1,6 @@
+# Built binary
+/uberstress
+# Saved run reports
+/results/
+# Editor/OS cruft
+.DS_Store
