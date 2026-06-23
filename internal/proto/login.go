@@ -118,7 +118,12 @@ func (c *Client) EnsureAccount(username, password string, timeout time.Duration)
 }
 
 func (c *Client) sendLogin(username, encodedPassword string) error {
-	return c.Send("LOGIN %s %s 0 *\t%s", username, encodedPassword, loginSentence)
+	// The space after the "*" local-IP field matters: the server splits args by
+	// space and bunches the trailing sentence, so a tab here would fold the
+	// tab-delimited sentence into local_ip and overflow that column under
+	// MariaDB's strict mode (SQLite silently truncates). Keep "* " then the
+	// tab-delimited sentence.
+	return c.Send("LOGIN %s %s 0 * %s", username, encodedPassword, loginSentence)
 }
 
 func isLoginVerdict(l string) bool {
