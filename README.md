@@ -41,14 +41,30 @@ Requires Go 1.26+. No external dependencies.
 # List load scenarios
 uberstress list-scenarios
 
-# Run one scenario against a running server, saving a report
+# Run one scenario against an already-running server, saving a report
 uberstress load --scenario login-storm --addr 127.0.0.1:8200 \
     --conns 500 --ramp 10s --duration 30s --ref new --sha "$(git rev-parse HEAD)"
+
+# Local all-in-one: reset the DB, launch a server checkout, load it, save a
+# tagged report -- and diff it against a previously-saved baseline.
+uberstress bench --server-dir ../uberserver --ref my-change \
+    --scenario login-storm --conns 500 --ramp 10s --duration 30s \
+    --compare-to results/login-storm__<baseline-sha>.json
 
 # Diff two saved reports (old vs new)
 uberstress compare --old results/login-storm__<old>.json \
                    --new results/login-storm__<new>.json
 ```
+
+### Database and server configuration
+
+`bench` defaults to a local Homebrew MariaDB (`root`/`root` over TCP) and the
+`mysql+pymysql` SQLAlchemy driver (uberserver's dev venv ships PyMySQL, not
+`mysqlclient`). Everything is a flag — `--db-host`, `--db-port`, `--db-user`,
+`--db-password`, `--db-name`, `--db-driver`, `--mysql-bin` — and `--launch=false
+--addr host:port` points at an already-running (e.g. remote) server instead of
+spawning one. The database is dropped and recreated before each run via the
+`mysql` CLI so every version starts from an identical clean schema.
 
 ### Reusing a saved run
 
@@ -84,15 +100,17 @@ the version that changed.
 
 ## Status
 
-Implemented and verified end-to-end: protocol client, metrics, reactor pinger,
-report save/load, `compare`, and the `login-storm` and `chat` scenarios.
+Implemented and verified end-to-end against MariaDB: protocol client, metrics,
+reactor pinger, report save/load, `compare`, the `bench` local A/B harness
+(reset DB, launch a server checkout, load, teardown, tagged report,
+`--compare-to`), and the `login-storm` and `chat` scenarios.
 
 Planned:
 
 - Scenarios: `register-storm`, `social`, `battle` (needs STARTTLS, as
   `OPENBATTLE` requires TLS), `battle-list + login-storm` (combined), `mixed`.
-- `compare` orchestration that launches both server versions against MariaDB,
-  resets the DB between runs, and skips any commit already tested.
+- A two-target mode that benchmarks old and new in one invocation (currently:
+  run `bench` per version, or reuse a saved report via `--compare-to`).
 - The old version's git ref must boot under the same Python/deps as the new one;
   if it doesn't, build a branch that combines the old code with only the
   dependency-compatibility commits to compare against.
