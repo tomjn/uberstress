@@ -21,3 +21,15 @@ func accountName(prefix string, id int) string {
 	}
 	return fmt.Sprintf("%s%05d", prefix, id)
 }
+
+// channelName returns the channel a connection joins given a base name and the
+// number of distinct channels to spread across.
+func channelName(base string, id, channels int) string {
+	if base == "" {
+		base = "stress"
+	}
+	if channels <= 1 {
+		return base
+	}
+	return fmt.Sprintf("%s%d", base, id%channels)
+}

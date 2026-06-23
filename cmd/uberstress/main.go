@@ -77,7 +77,9 @@ func cmdLoad(args []string) {
 	register := fs.Bool("register", true, "register accounts before login")
 	userPrefix := fs.String("user-prefix", "uberstress_", "generated account name prefix")
 	password := fs.String("password", "stresspw", "shared account password")
-	channel := fs.String("channel", "stress", "channel for chat-style scenarios")
+	channel := fs.String("channel", "stress", "base channel name for chat-style scenarios")
+	channels := fs.Int("channels", 1, "number of distinct channels to spread users across")
+	sayInterval := fs.Duration("say-interval", time.Second, "per-connection delay between SAY messages")
 	pingers := fs.Int("pingers", 2, "dedicated reactor-health PING connections")
 	pingInterval := fs.Duration("ping-interval", 200*time.Millisecond, "interval between health PINGs")
 	resultsDir := fs.String("results", "results", "directory to save the run report")
@@ -93,14 +95,16 @@ func cmdLoad(args []string) {
 	}
 
 	cfg := workload.Config{
-		Addr:       *addr,
-		Conns:      *conns,
-		Duration:   *duration,
-		Ramp:       *ramp,
-		Register:   *register,
-		UserPrefix: *userPrefix,
-		Password:   *password,
-		Channel:    *channel,
+		Addr:        *addr,
+		Conns:       *conns,
+		Duration:    *duration,
+		Ramp:        *ramp,
+		Register:    *register,
+		UserPrefix:  *userPrefix,
+		Password:    *password,
+		Channel:     *channel,
+		Channels:    *channels,
+		SayInterval: *sayInterval,
 	}
 
 	rec := metrics.NewRecorder()

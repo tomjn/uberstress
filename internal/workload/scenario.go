@@ -12,24 +12,28 @@ import (
 
 // Config holds the knobs shared by all scenarios.
 type Config struct {
-	Addr       string        // host:port of the lobby server
-	Conns      int           // number of concurrent connections to drive
-	Duration   time.Duration // how long to hold steady-state load
-	Ramp       time.Duration // spread connection startup over this window
-	Register   bool          // register each account before logging in
-	UserPrefix string        // account name prefix; accounts are <prefix><id>
-	Password   string        // shared password for generated accounts
-	Channel    string        // channel used by chat-style scenarios
+	Addr        string        // host:port of the lobby server
+	Conns       int           // number of concurrent connections to drive
+	Duration    time.Duration // how long to hold steady-state load
+	Ramp        time.Duration // spread connection startup over this window
+	Register    bool          // seed (register + confirm) accounts before the timed phase
+	UserPrefix  string        // account name prefix; accounts are <prefix><id>
+	Password    string        // shared password for generated accounts
+	Channel     string        // base channel name for chat-style scenarios
+	Channels    int           // number of distinct channels to spread users across
+	SayInterval time.Duration // per-connection delay between SAY messages
 }
 
 // Params renders the config as a flat string map for report provenance.
 func (c Config) Params() map[string]string {
 	return map[string]string{
-		"conns":    itoa(c.Conns),
-		"duration": c.Duration.String(),
-		"ramp":     c.Ramp.String(),
-		"register": btoa(c.Register),
-		"channel":  c.Channel,
+		"conns":        itoa(c.Conns),
+		"duration":     c.Duration.String(),
+		"ramp":         c.Ramp.String(),
+		"register":     btoa(c.Register),
+		"channel":      c.Channel,
+		"channels":     itoa(c.Channels),
+		"say_interval": c.SayInterval.String(),
 	}
 }
 

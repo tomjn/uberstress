@@ -65,14 +65,28 @@ func runOneLogin(ctx context.Context, cfg Config, id int, rec *metrics.Recorder)
 	}
 	defer c.Exit()
 
-	// Retry the transient "Already logged in." denial that can occur if a seed
-	// connection for this account has not finished disconnecting yet. Only the
-	// successful attempt's latency is recorded.
+	if _, ok := loginWithRetry(ctx, c, user, cfg.Password, rec); !ok {
+		return
+	}
+
+	// Hold the connection open so the server carries the full connected-user
+	// load for the rest of the timed phase.
+	<-ctx.Done()
+}
+
+// loginWithRetry logs in, retrying the transient "Already logged in." denial
+// that can occur while a seed connection for this account finishes
+// disconnecting. Only the successful attempt's latency is recorded under
+// "LOGIN". Returns the latency and whether login ultimately succeeded.
+func loginWithRetry(ctx context.Context, c *proto.Client, user, password string, rec *metrics.Recorder) (time.Duration, bool) {
 	var ttl time.Duration
+	var err error
 	for attempt := 0; attempt < 6; attempt++ {
-		ttl, err = c.Login(user, cfg.Password, 15*time.Second)
+		ttl, err = c.Login(user, password, 15*time.Second)
 		if err == nil {
-			break
+			rec.Observe("LOGIN", ttl)
+			rec.Inc("login_ok")
+			return ttl, true
 		}
 		if strings.Contains(err.Error(), "Already logged in") {
 			rec.Inc("login_retry")
@@ -81,16 +95,8 @@ func runOneLogin(ctx context.Context, cfg Config, id int, rec *metrics.Recorder)
 		}
 		break
 	}
-	if err != nil {
-		rec.Inc("login_error")
-		return
-	}
-	rec.Observe("LOGIN", ttl)
-	rec.Inc("login_ok")
-
-	// Hold the connection open so the server carries the full connected-user
-	// load for the rest of the timed phase.
-	<-ctx.Done()
+	rec.Inc("login_error")
+	return 0, false
 }
 
 // seedAccounts ensures accounts 0..Conns-1 exist and have confirmed the
