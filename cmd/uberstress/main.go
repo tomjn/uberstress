@@ -26,6 +26,7 @@ import (
 	"github.com/tomjn/uberstress/internal/harness"
 	"github.com/tomjn/uberstress/internal/metrics"
 	"github.com/tomjn/uberstress/internal/proto"
+	"github.com/tomjn/uberstress/internal/seedsql"
 	"github.com/tomjn/uberstress/internal/workload"
 )
 
@@ -41,6 +42,8 @@ func main() {
 		cmdBench(os.Args[2:])
 	case "list-scenarios":
 		cmdList()
+	case "gen-seed-sql":
+		cmdGenSeedSQL(os.Args[2:])
 	case "compare":
 		cmdCompare(os.Args[2:])
 	case "-h", "--help", "help":
@@ -59,6 +62,7 @@ usage:
   uberstress load  --scenario <name> --addr host:port [flags]
   uberstress bench --server-dir <uberserver checkout> --ref <label> [flags]
   uberstress list-scenarios
+  uberstress gen-seed-sql --count <n> [--user-prefix p] [--password pw]
   uberstress compare --old <report.json> --new <report.json>
 
 run "uberstress load -h" or "uberstress bench -h" for flags.
@@ -70,6 +74,19 @@ func cmdList() {
 	for _, s := range workload.All() {
 		fmt.Printf("  %-18s %s\n", s.Name(), s.Describe())
 	}
+}
+
+func cmdGenSeedSQL(args []string) {
+	fs := flag.NewFlagSet("gen-seed-sql", flag.ExitOnError)
+	count := fs.Int("count", 2000, "number of accounts to seed (>= max --conns)")
+	prefix := fs.String("user-prefix", "uberstress_", "generated account name prefix")
+	password := fs.String("password", "stresspw", "shared account password")
+	_ = fs.Parse(args)
+	if *count < 1 {
+		fmt.Fprintln(os.Stderr, "gen-seed-sql requires --count >= 1")
+		os.Exit(2)
+	}
+	fmt.Print(seedsql.Generate(*count, *prefix, *password))
 }
 
 // loadFlags holds the scenario/load knobs shared by `load` and `bench`.
