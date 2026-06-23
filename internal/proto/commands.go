@@ -1,6 +1,7 @@
 package proto
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -55,6 +56,65 @@ func (c *Client) Say(channel, msg string, timeout time.Duration) (time.Duration,
 	if _, _, err := c.Expect(timeout, func(l string) bool {
 		return strings.HasPrefix(l, "SAID "+channel+" ") && strings.HasSuffix(l, msg)
 	}); err != nil {
+		return 0, err
+	}
+	return time.Since(start), nil
+}
+
+// Ignore adds target to our ignore list (an async INSERT on the server) and
+// waits for the IGNORE echo. The server first broadcasts ADDUSER/REMOVEUSER for
+// the now-hidden user; Expect skips those. A SERVERMSG (e.g. "User is already
+// ignored.", "No such user.") is matched too -- and returned as an error -- so a
+// rejection fails fast instead of blocking until timeout.
+func (c *Client) Ignore(target string, timeout time.Duration) (time.Duration, error) {
+	return c.socialTagWrite("IGNORE", "IGNORE userName="+target, target, timeout)
+}
+
+// Unignore removes target from our ignore list (an async DELETE) and waits for
+// the UNIGNORE echo, with the same SERVERMSG fast-fail handling as Ignore.
+func (c *Client) Unignore(target string, timeout time.Duration) (time.Duration, error) {
+	return c.socialTagWrite("UNIGNORE", "UNIGNORE userName="+target, target, timeout)
+}
+
+// socialTagWrite sends a userName-tagged social mutation and waits for either
+// its echo (success) or a SERVERMSG (rejection, returned as an error).
+func (c *Client) socialTagWrite(cmd, echo, target string, timeout time.Duration) (time.Duration, error) {
+	start := time.Now()
+	if err := c.Send("%s userName=%s", cmd, target); err != nil {
+		return 0, err
+	}
+	line, _, err := c.Expect(timeout, func(l string) bool {
+		return l == echo || strings.HasPrefix(l, "SERVERMSG ")
+	})
+	if err != nil {
+		return 0, err
+	}
+	if strings.HasPrefix(line, "SERVERMSG ") {
+		return 0, fmt.Errorf("%s rejected: %s", cmd, line)
+	}
+	return time.Since(start), nil
+}
+
+// IgnoreList requests the ignore list (an async read) and waits for the
+// terminating IGNORELISTEND, timing the full read round-trip.
+func (c *Client) IgnoreList(timeout time.Duration) (time.Duration, error) {
+	return c.socialListRead("IGNORELIST", "IGNORELISTEND", timeout)
+}
+
+// FriendList requests the friend list (an async read) and waits for the
+// terminating FRIENDLISTEND.
+func (c *Client) FriendList(timeout time.Duration) (time.Duration, error) {
+	return c.socialListRead("FRIENDLIST", "FRIENDLISTEND", timeout)
+}
+
+// socialListRead sends a parameterless list command and waits for its END
+// terminator.
+func (c *Client) socialListRead(cmd, end string, timeout time.Duration) (time.Duration, error) {
+	start := time.Now()
+	if err := c.Send("%s", cmd); err != nil {
+		return 0, err
+	}
+	if _, _, err := c.Expect(timeout, func(l string) bool { return l == end }); err != nil {
 		return 0, err
 	}
 	return time.Since(start), nil
