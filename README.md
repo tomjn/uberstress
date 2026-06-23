@@ -98,17 +98,33 @@ the version that changed.
   are reported alongside latency — a "fast" run that silently dropped
   connections is not a win.
 
+- **TLS upgrades are staggered.** The server's single reactor thread cannot
+  service overlapping TLS handshakes — a synchronized burst of `STARTTLS` resets
+  all but one connection. Real clients never collide like this (they connect at
+  random times), so `battle` spaces its host upgrades apart to reproduce that
+  rather than fight a self-inflicted thundering herd.
+
 ## Status
 
 Implemented and verified end-to-end against MariaDB: protocol client, metrics,
 reactor pinger, report save/load, `compare`, the `bench` local A/B harness
 (reset DB, launch a server checkout, load, teardown, tagged report,
-`--compare-to`), and the `login-storm` and `chat` scenarios.
+`--compare-to`), and the `login-storm`, `chat`, `register-storm`, `social`, and
+`battle` scenarios.
+
+`battle` opens battles over TLS (`OPENBATTLE` requires it). Each host upgrades
+with `STARTTLS`, opens a battle, and holds it; players then `JOINBATTLE` and
+cycle `MYBATTLESTATUS`/`LEAVEBATTLE`/re-join. With our compat flags the host
+receives no `JOINBATTLEREQUEST`, so joins need no host approval. The number of
+TLS hosts is `--battle-hosts` (the rest are players). The social model the
+server actually exposes is `IGNORE`/`UNIGNORE` plus the async `IGNORELIST`/
+`FRIENDLIST` reads (friendship is a two-party `FRIENDREQUEST`/`ACCEPTFRIENDREQUEST`
+handshake with no sender echo, so it is not a single-client round-trip);
+`social` drives the former.
 
 Planned:
 
-- Scenarios: `register-storm`, `social`, `battle` (needs STARTTLS, as
-  `OPENBATTLE` requires TLS), `battle-list + login-storm` (combined), `mixed`.
+- Scenarios: `battle-list + login-storm` (combined), `mixed`.
 - A two-target mode that benchmarks old and new in one invocation (currently:
   run `bench` per version, or reuse a saved report via `--compare-to`).
 - The old version's git ref must boot under the same Python/deps as the new one;

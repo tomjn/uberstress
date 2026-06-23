@@ -22,6 +22,7 @@ type Config struct {
 	Channel     string        // base channel name for chat-style scenarios
 	Channels    int           // number of distinct channels to spread users across
 	SayInterval time.Duration // per-connection delay between SAY messages
+	BattleHosts int           // battle scenario: how many conns are TLS battle hosts
 }
 
 // Params renders the config as a flat string map for report provenance.
@@ -34,6 +35,7 @@ func (c Config) Params() map[string]string {
 		"channel":      c.Channel,
 		"channels":     itoa(c.Channels),
 		"say_interval": c.SayInterval.String(),
+		"battle_hosts": itoa(c.BattleHosts),
 	}
 }
 

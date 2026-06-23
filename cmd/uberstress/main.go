@@ -84,6 +84,7 @@ type loadFlags struct {
 	channel      *string
 	channels     *int
 	sayInterval  *time.Duration
+	battleHosts  *int
 	pingers      *int
 	pingInterval *time.Duration
 	results      *string
@@ -101,6 +102,7 @@ func addLoadFlags(fs *flag.FlagSet) *loadFlags {
 		channel:      fs.String("channel", "stress", "base channel name for chat-style scenarios"),
 		channels:     fs.Int("channels", 1, "number of distinct channels to spread users across"),
 		sayInterval:  fs.Duration("say-interval", time.Second, "per-connection delay between SAY messages"),
+		battleHosts:  fs.Int("battle-hosts", 10, "battle scenario: number of connections that host battles over TLS"),
 		pingers:      fs.Int("pingers", 2, "dedicated reactor-health PING connections"),
 		pingInterval: fs.Duration("ping-interval", 200*time.Millisecond, "interval between health PINGs"),
 		results:      fs.String("results", "results", "directory to save the run report"),
@@ -119,6 +121,7 @@ func (lf *loadFlags) config(addr string) workload.Config {
 		Channel:     *lf.channel,
 		Channels:    *lf.channels,
 		SayInterval: *lf.sayInterval,
+		BattleHosts: *lf.battleHosts,
 	}
 }
 

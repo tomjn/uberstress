@@ -119,3 +119,93 @@ func (c *Client) socialListRead(cmd, end string, timeout time.Duration) (time.Du
 	}
 	return time.Since(start), nil
 }
+
+// OpenBattle hosts a battle and returns its server-assigned battle id alongside
+// the round-trip latency. OPENBATTLE requires a TLS connection (see
+// Protocol.py:2153), so the caller must StartTLS first. The battle params
+// (type/natType/key/port/maxplayers/modhash/rank/maphash + engine\tversion\tmap)
+// are fixed to valid stress values; only the title varies. Success is the
+// OPENBATTLE <id> echo; failure is OPENBATTLEFAILED or a SERVERMSG (e.g. the
+// TLS-required message).
+func (c *Client) OpenBattle(title string, timeout time.Duration) (string, time.Duration, error) {
+	start := time.Now()
+	// type natType key port maxplayers modhash rank maphash <engine\tversion\tmap\ttitle\tmod>
+	if err := c.Send("OPENBATTLE 0 0 * 8452 8 1234567 0 0 spring\t105.0\tstressmap\t%s\tstressmod", title); err != nil {
+		return "", 0, err
+	}
+	line, _, err := c.Expect(timeout, func(l string) bool {
+		return strings.HasPrefix(l, "OPENBATTLE ") ||
+			strings.HasPrefix(l, "OPENBATTLEFAILED") ||
+			strings.HasPrefix(l, "SERVERMSG ")
+	})
+	if err != nil {
+		return "", 0, err
+	}
+	if !strings.HasPrefix(line, "OPENBATTLE ") {
+		return "", 0, fmt.Errorf("open battle failed: %s", line)
+	}
+	return strings.TrimPrefix(line, "OPENBATTLE "), time.Since(start), nil
+}
+
+// JoinBattle joins battleID and waits for the JOINBATTLE <id> <hash> ack. With
+// our compat flags the host receives no JOINBATTLEREQUEST, so the join proceeds
+// without host approval (Protocol.py:2231). Failure is JOINBATTLEFAILED.
+func (c *Client) JoinBattle(battleID string, timeout time.Duration) (time.Duration, error) {
+	start := time.Now()
+	if err := c.Send("JOINBATTLE %s", battleID); err != nil {
+		return 0, err
+	}
+	line, _, err := c.Expect(timeout, func(l string) bool {
+		return strings.HasPrefix(l, "JOINBATTLE "+battleID+" ") ||
+			strings.HasPrefix(l, "JOINBATTLEFAILED")
+	})
+	if err != nil {
+		return 0, err
+	}
+	if strings.HasPrefix(line, "JOINBATTLEFAILED") {
+		return 0, fmt.Errorf("join battle failed: %s", line)
+	}
+	return time.Since(start), nil
+}
+
+// MyBattleStatus sets the caller's in-battle status and waits for the
+// CLIENTBATTLESTATUS <username> echo (the server always echoes, broadcasting to
+// the battle or replying directly when nothing changed). username is needed to
+// match our own echo amid other members' status broadcasts.
+func (c *Client) MyBattleStatus(username, status, teamColor string, timeout time.Duration) (time.Duration, error) {
+	start := time.Now()
+	if err := c.Send("MYBATTLESTATUS %s %s", status, teamColor); err != nil {
+		return 0, err
+	}
+	line, _, err := c.Expect(timeout, func(l string) bool {
+		return strings.HasPrefix(l, "CLIENTBATTLESTATUS "+username+" ") ||
+			strings.HasPrefix(l, "FAILED ")
+	})
+	if err != nil {
+		return 0, err
+	}
+	if strings.HasPrefix(line, "FAILED ") {
+		return 0, fmt.Errorf("mybattlestatus failed: %s", line)
+	}
+	return time.Since(start), nil
+}
+
+// LeaveBattle leaves the current battle and waits for the LEFTBATTLE <id>
+// <username> broadcast, which the leaver also receives.
+func (c *Client) LeaveBattle(battleID, username string, timeout time.Duration) (time.Duration, error) {
+	start := time.Now()
+	if err := c.Send("LEAVEBATTLE"); err != nil {
+		return 0, err
+	}
+	line, _, err := c.Expect(timeout, func(l string) bool {
+		return l == "LEFTBATTLE "+battleID+" "+username ||
+			strings.HasPrefix(l, "FAILED ")
+	})
+	if err != nil {
+		return 0, err
+	}
+	if strings.HasPrefix(line, "FAILED ") {
+		return 0, fmt.Errorf("leave battle failed: %s", line)
+	}
+	return time.Since(start), nil
+}
