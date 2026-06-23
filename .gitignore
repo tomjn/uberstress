@@ -2,5 +2,7 @@
 /uberstress
 # Saved run reports
 /results/
+# Scratch dir for trace scripts (see Makefile `trace` target)
+/tmp/
 # Editor/OS cruft
 .DS_Store
