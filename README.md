@@ -109,14 +109,21 @@ the version that changed.
 Implemented and verified end-to-end against MariaDB: protocol client, metrics,
 reactor pinger, report save/load, `compare`, the `bench` local A/B harness
 (reset DB, launch a server checkout, load, teardown, tagged report,
-`--compare-to`), and the `login-storm`, `chat`, `register-storm`, `social`, and
-`battle` scenarios.
+`--compare-to`), and the `login-storm`, `chat`, `register-storm`, `social`,
+`battle`, and `battle-list` scenarios.
 
 `battle` opens battles over TLS (`OPENBATTLE` requires it). Each host upgrades
 with `STARTTLS`, opens a battle, and holds it; players then `JOINBATTLE` and
 cycle `MYBATTLESTATUS`/`LEAVEBATTLE`/re-join. With our compat flags the host
 receives no `JOINBATTLEREQUEST`, so joins need no host approval. The number of
-TLS hosts is `--battle-hosts` (the rest are players). The social model the
+TLS hosts is `--battle-hosts` (the rest are players). `battle-list` reuses that
+host phase to open `--battle-hosts` battles and then runs a login storm over the
+remaining accounts: the server sends a `BATTLEOPENED` line per open battle in
+every login's state dump, so a long battle list inflates each dump -- the
+sharpest old-vs-new discriminator (crank `--battle-hosts`). Battle hosts are
+opened sequentially before the measured window starts (with redial-retry on the
+transient TLS resets the reactor produces under load), so host setup never eats
+the load budget. The social model the
 server actually exposes is `IGNORE`/`UNIGNORE` plus the async `IGNORELIST`/
 `FRIENDLIST` reads (friendship is a two-party `FRIENDREQUEST`/`ACCEPTFRIENDREQUEST`
 handshake with no sender echo, so it is not a single-client round-trip);
@@ -124,7 +131,7 @@ handshake with no sender echo, so it is not a single-client round-trip);
 
 Planned:
 
-- Scenarios: `battle-list + login-storm` (combined), `mixed`.
+- Scenarios: `mixed`.
 - A two-target mode that benchmarks old and new in one invocation (currently:
   run `bench` per version, or reuse a saved report via `--compare-to`).
 - The old version's git ref must boot under the same Python/deps as the new one;
