@@ -107,6 +107,7 @@ func runOneSocial(ctx context.Context, cfg Config, id int, opInterval time.Durat
 				d, err = c.FriendList(timeout)
 			}
 			if err != nil {
+				rec.ObserveError(key)
 				rec.Inc(ctr + "_error")
 				return
 			}

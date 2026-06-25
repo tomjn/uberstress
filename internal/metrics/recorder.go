@@ -4,6 +4,7 @@ package metrics
 
 import (
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -11,16 +12,18 @@ import (
 // Recorder aggregates observations across all connection goroutines. Safe for
 // concurrent use.
 type Recorder struct {
-	mu       sync.Mutex
-	hists    map[string]*hist
-	counters map[string]int64
+	mu        sync.Mutex
+	hists     map[string]*hist
+	counters  map[string]int64
+	cmdErrors map[string]int64 // per-command failure counts, keyed by command name
 }
 
 // NewRecorder returns an empty Recorder.
 func NewRecorder() *Recorder {
 	return &Recorder{
-		hists:    make(map[string]*hist),
-		counters: make(map[string]int64),
+		hists:     make(map[string]*hist),
+		counters:  make(map[string]int64),
+		cmdErrors: make(map[string]int64),
 	}
 }
 
@@ -44,6 +47,41 @@ func (r *Recorder) Add(name string, delta int64) {
 	r.mu.Lock()
 	r.counters[name] += delta
 	r.mu.Unlock()
+}
+
+// ObserveError records a failed attempt of a named command (e.g. "LOGIN"),
+// attributing it to that command's CmdStat. Connection-level failures that
+// precede any command (dial/seed/TLS) are recorded with Inc instead, as they
+// belong to no single command.
+func (r *Recorder) ObserveError(command string) {
+	r.mu.Lock()
+	r.cmdErrors[command]++
+	r.mu.Unlock()
+}
+
+// Snapshot returns a cheap mid-run summary for live progress reporting: the
+// total number of recorded command observations and the total number of
+// error-type counters seen so far.
+func (r *Recorder) Snapshot() (commands, errors int64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, h := range r.hists {
+		commands += int64(len(h.samples))
+	}
+	for name, v := range r.counters {
+		if isErrorCounter(name) {
+			errors += v
+		}
+	}
+	return commands, errors
+}
+
+// isErrorCounter reports whether a counter name denotes a failure (mirrors the
+// coilbox UI's classification). Retries are deliberately excluded.
+func isErrorCounter(name string) bool {
+	return strings.Contains(name, "error") ||
+		strings.Contains(name, "timeout") ||
+		strings.Contains(name, "fail")
 }
 
 // hist holds raw latency samples for one command. Exact percentiles are

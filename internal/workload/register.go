@@ -63,6 +63,7 @@ func runOneRegister(ctx context.Context, cfg Config, id int, rec *metrics.Record
 
 	d, err := c.Register(user, cfg.Password, 15*time.Second)
 	if err != nil {
+		rec.ObserveError("REGISTER")
 		rec.Inc("register_error")
 		return
 	}

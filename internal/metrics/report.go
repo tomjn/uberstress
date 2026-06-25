@@ -27,15 +27,18 @@ type Report struct {
 	Counters      map[string]int64  `json:"counters"`
 }
 
-// CmdStat is the latency summary for one command type.
+// CmdStat is the latency summary for one command type. Count is the number of
+// successful (observed) attempts; ErrorCount is the number of failed attempts
+// of the same command.
 type CmdStat struct {
-	Command   string  `json:"command"`
-	Count     int     `json:"count"`
-	P50ms     float64 `json:"p50_ms"`
-	P95ms     float64 `json:"p95_ms"`
-	P99ms     float64 `json:"p99_ms"`
-	MaxMs     float64 `json:"max_ms"`
-	PerSecond float64 `json:"per_second"`
+	Command    string  `json:"command"`
+	Count      int     `json:"count"`
+	ErrorCount int     `json:"error_count"`
+	P50ms      float64 `json:"p50_ms"`
+	P95ms      float64 `json:"p95_ms"`
+	P99ms      float64 `json:"p99_ms"`
+	MaxMs      float64 `json:"max_ms"`
+	PerSecond  float64 `json:"per_second"`
 }
 
 // BuildReport assembles a Report from the Recorder's accumulated data.
@@ -52,25 +55,42 @@ func (r *Recorder) BuildReport(scenario, addr string, dur time.Duration) Report 
 	for k, v := range r.counters {
 		rep.Counters[k] = v
 	}
-	names := make([]string, 0, len(r.hists))
+	// Union of commands that recorded a latency and commands that only ever
+	// failed, so a command with zero successes still surfaces its error count.
+	seen := make(map[string]bool, len(r.hists)+len(r.cmdErrors))
+	names := make([]string, 0, len(r.hists)+len(r.cmdErrors))
 	for name := range r.hists {
-		names = append(names, name)
+		if !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+	for name := range r.cmdErrors {
+		if !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		count, p50, p95, p99, max := r.hists[name].summary()
+		var count int
+		var p50, p95, p99, max time.Duration
+		if h := r.hists[name]; h != nil {
+			count, p50, p95, p99, max = h.summary()
+		}
 		perSec := 0.0
 		if dur > 0 {
 			perSec = float64(count) / dur.Seconds()
 		}
 		rep.Commands = append(rep.Commands, CmdStat{
-			Command:   name,
-			Count:     count,
-			P50ms:     ms(p50),
-			P95ms:     ms(p95),
-			P99ms:     ms(p99),
-			MaxMs:     ms(max),
-			PerSecond: perSec,
+			Command:    name,
+			Count:      count,
+			ErrorCount: int(r.cmdErrors[name]),
+			P50ms:      ms(p50),
+			P95ms:      ms(p95),
+			P99ms:      ms(p99),
+			MaxMs:      ms(max),
+			PerSecond:  perSec,
 		})
 	}
 	return rep
