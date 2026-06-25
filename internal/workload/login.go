@@ -95,6 +95,7 @@ func loginWithRetry(ctx context.Context, c *proto.Client, user, password string,
 		}
 		break
 	}
+	rec.ObserveError("LOGIN")
 	rec.Inc("login_error")
 	return 0, false
 }

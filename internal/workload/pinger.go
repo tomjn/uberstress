@@ -50,6 +50,7 @@ func pingLoop(ctx context.Context, c *proto.Client, interval time.Duration, rec 
 		case <-t.C:
 			d, err := c.Ping(5 * time.Second)
 			if err != nil {
+				rec.ObserveError("PING")
 				rec.Inc("ping_error")
 				return // reconnect
 			}

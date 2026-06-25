@@ -189,6 +189,7 @@ func runBattleHost(ctx context.Context, cfg Config, id int, rec *metrics.Recorde
 
 	bid, d, err := c.OpenBattle(user, 15*time.Second)
 	if err != nil {
+		rec.ObserveError("OPENBATTLE")
 		rec.Inc("openbattle_error")
 		opened <- ""
 		return
@@ -219,6 +220,7 @@ func runBattlePlayer(ctx context.Context, cfg Config, id int, ids []string, opIn
 	bid := ids[id%len(ids)]
 	d, err := c.JoinBattle(bid, 10*time.Second)
 	if err != nil {
+		rec.ObserveError("JOINBATTLE")
 		rec.Inc("join_error")
 		return
 	}
@@ -254,6 +256,7 @@ func runBattlePlayer(ctx context.Context, cfg Config, id int, ids []string, opIn
 				dd, err = c.JoinBattle(bid, timeout)
 			}
 			if err != nil {
+				rec.ObserveError(key)
 				rec.Inc(ctr + "_error")
 				return
 			}

@@ -89,6 +89,7 @@ func runOneChatter(ctx context.Context, cfg Config, id int, sayInterval time.Dur
 			msg := fmt.Sprintf("u%d-m%d", id, seq)
 			d, err := c.Say(channel, msg, 10*time.Second)
 			if err != nil {
+				rec.ObserveError("SAY")
 				rec.Inc("say_error")
 				return
 			}
